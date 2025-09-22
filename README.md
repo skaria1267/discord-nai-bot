@@ -39,8 +39,8 @@ Discord机器人，使用NovelAI API生成AI图片。
 
 ## 作者
 
-Created by skaria1267
-
+Created by skaria1267 claude 4.1op thinking
+作者什么都不懂，仅提供指令，全是小克写的
 ## License
 
 MIT

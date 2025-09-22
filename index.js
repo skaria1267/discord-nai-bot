@@ -9,7 +9,6 @@ const CLIENT_ID = process.env.CLIENT_ID;
 
 // NAI API配置
 const NAI_API_BASE = 'https://image.novelai.net';
-const NAI_API_GENERATE = NAI_API_BASE + '/ai/generate-image';
 
 // Discord客户端
 const client = new Client({
@@ -36,26 +35,54 @@ const SIZE_PRESETS = {
     'square_l': { width: 1024, height: 1024 }
 };
 
-// 正确的模型名称（基于API实际格式）
-const MODELS = {
-    // 主要模型
-    'nai-diffusion-3': 'V3 Anime (主力)',
-    'nai-diffusion-2': 'V2 Anime',
-    'nai-diffusion': 'V1 Anime',
-    'safe-diffusion': 'V1 Curated',
-    'nai-diffusion-furry': 'V1 Furry',
-    'nai-diffusion-3-inpainting': 'V3 Inpainting',
+// 所有可能的模型名称
+const POSSIBLE_MODELS = [
+    // V4.5系列（尝试各种可能的命名）
+    'nai-diffusion-4.5-full',
+    'nai-diffusion-4.5-curated',
+    'nai-diffusion-4.5',
+    'nai-diffusion-45-full',
+    'nai-diffusion-45-curated',
+    'nai-diffusion-45',
+    'nai_diffusion_4_5_full',
+    'nai_diffusion_4_5_curated',
+    'v4.5-full',
+    'v4.5-curated',
+    'v4.5',
+    'v45',
     
-    // V4模型（可能的名称）
-    'nai-diffusion-4-curated-preview': 'V4 Curated Preview',
-    'nai-diffusion-4': 'V4',
+    // V4系列
+    'nai-diffusion-4-full',
+    'nai-diffusion-4-curated-preview',
+    'nai-diffusion-4-curated',
+    'nai-diffusion-4',
+    'nai_diffusion_4_full',
+    'nai_diffusion_4_curated_preview',
+    'v4-full',
+    'v4-curated',
+    'v4',
     
-    // 尝试的V4.5名称
-    'nai-diffusion-4.5-curated': 'V4.5 Curated',
-    'nai-diffusion-4.5': 'V4.5',
-    'nai-diffusion-45-curated': 'V4.5 Curated (无点)',
-    'nai-diffusion-45': 'V4.5 (无点)'
-};
+    // V3系列（确认可用）
+    'nai-diffusion-3',
+    'nai-diffusion-3-inpainting',
+    'nai_diffusion_3',
+    'v3',
+    
+    // V2系列
+    'nai-diffusion-2',
+    'nai_diffusion_2',
+    'v2',
+    
+    // V1系列
+    'nai-diffusion',
+    'safe-diffusion',
+    'nai-diffusion-furry',
+    'nai-diffusion-furry-v3',
+    'v1'
+];
+
+// 可用模型缓存
+let availableModels = {};
 
 // 采样器
 const SAMPLERS = {
@@ -66,10 +93,7 @@ const SAMPLERS = {
     'k_dpmpp_sde': 'DPM++ SDE',
     'k_dpm_2': 'DPM2',
     'k_dpm_2_ancestral': 'DPM2 Ancestral',
-    'k_dpm_adaptive': 'DPM Adaptive',
-    'k_dpm_fast': 'DPM Fast',
-    'ddim_v3': 'DDIM V3',
-    'ddim': 'DDIM'
+    'ddim_v3': 'DDIM V3'
 };
 
 // 注册命令
@@ -83,18 +107,8 @@ const commands = [
                 .setRequired(true))
         .addStringOption(option =>
             option.setName('model')
-                .setDescription('选择模型（如果V4报错请用V3）')
-                .setRequired(false)
-                .addChoices(
-                    { name: '🎨 V3 Anime (推荐)', value: 'nai-diffusion-3' },
-                    { name: '📌 V4 Preview (测试)', value: 'nai-diffusion-4-curated-preview' },
-                    { name: '🆕 V4.5 Curated (尝试)', value: 'nai-diffusion-4.5-curated' },
-                    { name: '🌸 V2 Anime', value: 'nai-diffusion-2' },
-                    { name: '🎯 V1 Anime', value: 'nai-diffusion' },
-                    { name: '🔧 V3 Inpainting', value: 'nai-diffusion-3-inpainting' },
-                    { name: '✅ V1 Curated', value: 'safe-diffusion' },
-                    { name: '🦊 V1 Furry', value: 'nai-diffusion-furry' }
-                ))
+                .setDescription('模型名称（留空用默认）')
+                .setRequired(false))
         .addStringOption(option =>
             option.setName('negative')
                 .setDescription('负向提示词')
@@ -128,39 +142,23 @@ const commands = [
                 .setRequired(false)
                 .addChoices(
                     { name: 'Euler Ancestral (推荐)', value: 'k_euler_ancestral' },
-                    { name: 'DPM++ 2M (稳定)', value: 'k_dpmpp_2m' },
-                    { name: 'DPM++ 2S Ancestral', value: 'k_dpmpp_2s_ancestral' },
-                    { name: 'Euler', value: 'k_euler' },
-                    { name: 'DPM++ SDE', value: 'k_dpmpp_sde' },
-                    { name: 'DDIM V3', value: 'ddim_v3' }
+                    { name: 'DPM++ 2M', value: 'k_dpmpp_2m' },
+                    { name: 'Euler', value: 'k_euler' }
                 ))
-        .addIntegerOption(option =>
-            option.setName('seed')
-                .setDescription('种子（-1随机）')
-                .setRequired(false)
-                .setMinValue(-1))
         .addBooleanOption(option =>
             option.setName('smea')
-                .setDescription('启用SMEA（V3高分辨率推荐）')
-                .setRequired(false))
-        .addBooleanOption(option =>
-            option.setName('dyn')
-                .setDescription('启用SMEA DYN（增强细节）')
+                .setDescription('启用SMEA')
                 .setRequired(false)),
     
-    // 测试命令
+    // 探测模型命令
+    new SlashCommandBuilder()
+        .setName('nai_models')
+        .setDescription('探测所有可用的NAI模型'),
+    
+    // 测试API命令
     new SlashCommandBuilder()
         .setName('nai_test')
-        .setDescription('测试NAI连接和模型'),
-    
-    // 尝试模型命令
-    new SlashCommandBuilder()
-        .setName('nai_try')
-        .setDescription('尝试不同的模型名称')
-        .addStringOption(option =>
-            option.setName('model')
-                .setDescription('输入模型名称尝试')
-                .setRequired(true))
+        .setDescription('测试NAI API连接')
 ];
 
 // 部署命令
@@ -178,27 +176,110 @@ async function deployCommands() {
     }
 }
 
-// 测试API连接
-async function testNAIConnection() {
+// 测试单个模型
+async function testModel(modelName) {
     try {
-        console.log('🔍 测试NAI API连接...');
-        const response = await axios.get(NAI_API_BASE + '/user/information', {
+        const payload = {
+            input: 'test',
+            model: modelName,
+            action: 'generate',
+            parameters: {
+                width: 64,
+                height: 64,
+                scale: 5,
+                sampler: 'k_euler',
+                steps: 1,
+                seed: 12345,
+                n_samples: 1,
+                ucPreset: 0,
+                negative_prompt: ''
+            }
+        };
+
+        const response = await axios.post(NAI_API_BASE + '/ai/generate-image', payload, {
+            headers: {
+                'Authorization': 'Bearer ' + NAI_API_KEY,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            timeout: 5000
+        });
+        
+        return true;
+    } catch (error) {
+        if (error.response?.status === 400 && error.response?.data?.message?.includes('model')) {
+            return false;
+        }
+        // 其他错误可能是API问题，不是模型问题
+        if (error.response?.status === 402) {
+            console.log('⚠️ Anlas不足，但模型可能有效:', modelName);
+        }
+        return false;
+    }
+}
+
+// 探测所有模型
+async function discoverModels() {
+    console.log('🔍 开始探测NAI模型...');
+    const found = {};
+    
+    for (const model of POSSIBLE_MODELS) {
+        const isValid = await testModel(model);
+        if (isValid) {
+            console.log('✅ 发现可用模型:', model);
+            found[model] = model;
+        }
+    }
+    
+    if (Object.keys(found).length === 0) {
+        console.log('⚠️ 未找到可用模型，使用默认列表');
+        found['nai-diffusion-3'] = 'V3 Anime';
+        found['nai-diffusion-2'] = 'V2 Anime';
+        found['nai-diffusion'] = 'V1 Anime';
+    }
+    
+    availableModels = found;
+    console.log('📦 可用模型:', Object.keys(availableModels).join(', '));
+    return found;
+}
+
+// 测试API基础连接
+async function testAPIConnection() {
+    try {
+        // 尝试生成一个最小的图片
+        const response = await axios.post(NAI_API_BASE + '/ai/generate-image', {
+            input: 'test',
+            model: 'nai-diffusion-3',
+            action: 'generate',
+            parameters: {
+                width: 64,
+                height: 64,
+                scale: 5,
+                sampler: 'k_euler',
+                steps: 1,
+                seed: 12345,
+                n_samples: 1,
+                ucPreset: 0,
+                negative_prompt: ''
+            }
+        }, {
             headers: {
                 'Authorization': 'Bearer ' + NAI_API_KEY,
                 'Content-Type': 'application/json'
             },
             timeout: 10000
         });
-        return { success: true, data: response.data };
+        return { success: true, status: response.status };
     } catch (error) {
         return { 
             success: false, 
-            error: error.response?.status || error.message 
+            status: error.response?.status,
+            message: error.response?.statusText || error.message
         };
     }
 }
 
-// 生成图片（带详细日志）
+// 生成图片
 async function generateImage(params) {
     const {
         prompt,
@@ -216,26 +297,10 @@ async function generateImage(params) {
 
     const actualSeed = seed === -1 ? Math.floor(Math.random() * 2147483647) : seed;
     
-    // 根据模型选择提示词格式
-    let finalPrompt = prompt;
-    let finalNegative = negative_prompt || '';
-    
-    // 添加质量标签
-    if (model.includes('3') || model.includes('2') || model === 'nai-diffusion') {
-        // V1-V3使用普通格式
-        finalPrompt = 'masterpiece, best quality, ' + prompt;
-        if (!finalNegative) {
-            finalNegative = 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry';
-        }
-    } else if (model.includes('4')) {
-        // V4/V4.5使用花括号格式
-        finalPrompt = '{best quality}, {masterpiece}, ' + prompt;
-        if (!finalNegative) {
-            finalNegative = '{worst quality}, {bad quality}, text, signature, watermark';
-        }
-    }
+    // 质量标签
+    let finalPrompt = 'masterpiece, best quality, ' + prompt;
+    let finalNegative = negative_prompt || 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry';
 
-    // 构建请求
     const payload = {
         input: finalPrompt,
         model: model,
@@ -250,8 +315,8 @@ async function generateImage(params) {
             n_samples: 1,
             ucPreset: 0,
             qualityToggle: false,
-            sm: smea && !model.includes('4'),
-            sm_dyn: dyn && !model.includes('4'),
+            sm: smea,
+            sm_dyn: dyn,
             dynamic_thresholding: false,
             controlnet_strength: 1,
             legacy: false,
@@ -260,24 +325,10 @@ async function generateImage(params) {
         }
     };
 
-    // V3特有SMEA参数
-    if (model === 'nai-diffusion-3' && smea) {
-        payload.parameters.smea = 0.12;
-        payload.parameters.dyn = dyn ? 1.0 : 0;
-    }
-
-    // V4可能需要的参数
-    if (model.includes('4')) {
-        payload.parameters.noise_schedule = 'karras';
-        payload.parameters.params_version = 3;
-    }
-
-    console.log('📤 发送请求到:', NAI_API_GENERATE);
-    console.log('📦 使用模型:', model);
-    console.log('⚙️ 参数:', JSON.stringify(payload.parameters, null, 2));
+    console.log('📤 生成请求 模型:', model);
 
     try {
-        const response = await axios.post(NAI_API_GENERATE, payload, {
+        const response = await axios.post(NAI_API_BASE + '/ai/generate-image', payload, {
             headers: {
                 'Authorization': 'Bearer ' + NAI_API_KEY,
                 'Content-Type': 'application/json',
@@ -287,7 +338,6 @@ async function generateImage(params) {
             timeout: 60000
         });
 
-        console.log('✅ 收到响应，解析中...');
         const JSZip = require('jszip');
         const zip = await JSZip.loadAsync(response.data);
         const files = Object.keys(zip.files);
@@ -295,57 +345,48 @@ async function generateImage(params) {
         
         if (imageFile) {
             const imageData = await zip.files[imageFile].async('nodebuffer');
-            return { buffer: imageData, seed: actualSeed, model: model };
+            return { buffer: imageData, seed: actualSeed };
         }
         throw new Error('未找到图片');
     } catch (error) {
-        console.error('❌ 生成失败:', error.message);
-        if (error.response) {
-            console.error('状态码:', error.response.status);
-            console.error('响应:', error.response.statusText);
-            // 尝试解析错误信息
-            try {
-                const errorText = error.response.data.toString('utf-8');
-                console.error('错误详情:', errorText);
-            } catch (e) {}
-        }
+        console.error('❌ 生成失败:', error.response?.status || error.message);
         throw error;
     }
 }
 
-// 处理命令
+// 处理交互
 client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
 
-    // 测试命令
+    // 测试API
     if (interaction.commandName === 'nai_test') {
         await interaction.deferReply();
-        const test = await testNAIConnection();
-        if (test.success) {
-            await interaction.editReply('✅ NAI API连接成功！\n可用模型请尝试：\n- nai-diffusion-3 (V3)\n- nai-diffusion-2 (V2)\n- nai-diffusion (V1)');
+        const result = await testAPIConnection();
+        if (result.success) {
+            await interaction.editReply('✅ NAI API连接成功！');
         } else {
-            await interaction.editReply('❌ NAI API连接失败！\n错误：' + test.error);
+            let msg = '❌ NAI API连接失败！\n';
+            if (result.status === 401) msg += '🔑 API密钥无效';
+            else if (result.status === 402) msg += '💰 Anlas余额不足';
+            else if (result.status === 404) msg += '🔍 API端点错误';
+            else msg += '错误: ' + result.message;
+            await interaction.editReply(msg);
         }
         return;
     }
 
-    // 尝试模型命令
-    if (interaction.commandName === 'nai_try') {
+    // 探测模型
+    if (interaction.commandName === 'nai_models') {
         await interaction.deferReply();
-        const modelName = interaction.options.getString('model');
+        await interaction.editReply('🔍 正在探测所有可用模型，请稍候...');
         
-        try {
-            console.log('🧪 尝试模型:', modelName);
-            const result = await generateImage({
-                prompt: 'test',
-                model: modelName,
-                width: 512,
-                height: 512,
-                steps: 1
-            });
-            await interaction.editReply('✅ 模型 ' + modelName + ' 可用！');
-        } catch (error) {
-            await interaction.editReply('❌ 模型 ' + modelName + ' 不可用\n错误：' + (error.response?.status || error.message));
+        const models = await discoverModels();
+        const modelList = Object.keys(models);
+        
+        if (modelList.length > 0) {
+            await interaction.editReply('✅ **发现 ' + modelList.length + ' 个可用模型：**\n```\n' + modelList.join('\n') + '\n```');
+        } else {
+            await interaction.editReply('❌ 未找到可用模型，请检查API密钥');
         }
         return;
     }
@@ -356,56 +397,42 @@ client.on('interactionCreate', async interaction => {
 
         try {
             const prompt = interaction.options.getString('prompt');
-            const negative = interaction.options.getString('negative') || '';
             const model = interaction.options.getString('model') || 'nai-diffusion-3';
+            const negative = interaction.options.getString('negative') || '';
             const sizePreset = interaction.options.getString('size');
             const steps = interaction.options.getInteger('steps') || 28;
             const cfg = interaction.options.getNumber('cfg') || 5;
             const sampler = interaction.options.getString('sampler') || 'k_euler_ancestral';
-            const seed = interaction.options.getInteger('seed') || -1;
             const smea = interaction.options.getBoolean('smea') || false;
-            const dyn = interaction.options.getBoolean('dyn') || false;
 
-            // 确定尺寸
             let width = 832, height = 1216;
             if (sizePreset && SIZE_PRESETS[sizePreset]) {
                 width = SIZE_PRESETS[sizePreset].width;
                 height = SIZE_PRESETS[sizePreset].height;
             }
 
-            // 检查尺寸
-            if (width * height > SIZE_LIMITS.maxPixels) {
-                await interaction.editReply('❌ 尺寸超限！最大1216×832');
-                return;
-            }
-
-            console.log('🎨 开始生成...');
             const result = await generateImage({
                 prompt, negative_prompt: negative, model,
-                width, height, steps, cfg, sampler, seed, smea, dyn
+                width, height, steps, cfg, sampler, smea
             });
 
             const attachment = new AttachmentBuilder(result.buffer, { 
                 name: 'nai_' + result.seed + '.png' 
             });
 
-            const modelName = MODELS[model] || model;
             const info = '✨ **生成完成！**\n' +
-                        '📐 尺寸：' + width + '×' + height + '\n' +
-                        '🎯 模型：' + modelName + '\n' +
-                        '⚙️ 参数：Steps ' + steps + ' | CFG ' + cfg + '\n' +
-                        '🌱 种子：' + result.seed;
+                        '📐 ' + width + '×' + height + '\n' +
+                        '🎯 模型: ' + model + '\n' +
+                        '⚙️ Steps: ' + steps + ' | CFG: ' + cfg + '\n' +
+                        '🌱 种子: ' + result.seed;
 
             await interaction.editReply({ content: info, files: [attachment] });
-            console.log('✅ 发送成功');
 
         } catch (error) {
-            console.error('❌ 错误:', error);
             let msg = '❌ **生成失败**\n';
-            
             if (error.response?.status === 400) {
-                msg += '⚠️ 参数错误（可能是模型名称不正确）\n';
-                msg += '请尝试使用 V3 模型或运行 /nai_test 检查连接';
+                msg += '⚠️ 模型名称可能不正确\n';
+                msg += '请运行 /nai_models 探测可用模型';
             } else if (error.response?.status === 401) {
                 msg += '🔑 API密钥无效';
             } else if (error.response?.status === 402) {
@@ -413,7 +440,6 @@ client.on('interactionCreate', async interaction => {
             } else {
                 msg += error.message;
             }
-            
             await interaction.editReply(msg);
         }
     }
@@ -423,13 +449,11 @@ client.on('interactionCreate', async interaction => {
 client.once('clientReady', () => {
     console.log('✅ 已登录:', client.user.tag);
     deployCommands();
-    testNAIConnection().then(result => {
-        if (result.success) {
-            console.log('✅ NAI API连接正常');
-        } else {
-            console.log('⚠️ NAI API连接失败:', result.error);
-        }
-    });
+    
+    // 启动时探测模型
+    setTimeout(() => {
+        discoverModels().catch(console.error);
+    }, 2000);
 });
 
 client.on('error', error => console.error('错误:', error));

@@ -2,15 +2,12 @@ const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, Attachment
 const axios = require('axios');
 require('dotenv').config();
 
-// 环境变量
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const NAI_API_KEY = process.env.NAI_API_KEY;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-// NAI API配置
 const NAI_API_BASE = 'https://image.novelai.net';
 
-// Discord客户端
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -19,14 +16,12 @@ const client = new Client({
     ]
 });
 
-// 严格尺寸限制 - 最大832×1216
 const SIZE_LIMITS = { 
-    maxPixels: 832 * 1216,  // 1012352像素
+    maxPixels: 832 * 1216,
     maxWidth: 1216,
     maxHeight: 1216
 };
 
-// 预设尺寸 - 全部在限制内
 const SIZE_PRESETS = {
     'portrait_s': { width: 512, height: 768 },
     'portrait_m': { width: 832, height: 1216 },
@@ -37,9 +32,8 @@ const SIZE_PRESETS = {
     'square_l': { width: 832, height: 832 }
 };
 
-// 模型列表 - 使用正确的4-5格式
 const MODELS = {
-    'nai-diffusion-4-5-full': '🌟 V4.5 Full (最新最强)',
+    'nai-diffusion-4-5-full': '🌟 V4.5 Full',
     'nai-diffusion-4-5-curated': '✨ V4.5 Curated',
     'nai-diffusion-4-full': '🎯 V4 Full',
     'nai-diffusion-4-curated': '📌 V4 Curated',
@@ -53,23 +47,10 @@ const MODELS = {
     'nai-diffusion-furry-v3': '🐺 V3 Furry'
 };
 
-// 采样器
-const SAMPLERS = {
-    'k_euler': 'Euler',
-    'k_euler_ancestral': 'Euler Ancestral',
-    'k_dpmpp_2s_ancestral': 'DPM++ 2S Ancestral', 
-    'k_dpmpp_2m': 'DPM++ 2M',
-    'k_dpmpp_sde': 'DPM++ SDE',
-    'k_dpm_2': 'DPM2',
-    'k_dpm_2_ancestral': 'DPM2 Ancestral',
-    'ddim_v3': 'DDIM V3'
-};
-
-// 注册命令
 const commands = [
     new SlashCommandBuilder()
         .setName('nai')
-        .setDescription('使用NovelAI生成图片（限小图）')
+        .setDescription('使用NovelAI生成图片')
         .addStringOption(option =>
             option.setName('prompt')
                 .setDescription('正向提示词')
@@ -79,7 +60,7 @@ const commands = [
                 .setDescription('选择模型')
                 .setRequired(false)
                 .addChoices(
-                    { name: '🌟 V4.5 Full (最新)', value: 'nai-diffusion-4-5-full' },
+                    { name: '🌟 V4.5 Full', value: 'nai-diffusion-4-5-full' },
                     { name: '✨ V4.5 Curated', value: 'nai-diffusion-4-5-curated' },
                     { name: '🎯 V4 Full', value: 'nai-diffusion-4-full' },
                     { name: '📌 V4 Curated', value: 'nai-diffusion-4-curated' },
@@ -98,7 +79,7 @@ const commands = [
                 .setRequired(false))
         .addStringOption(option =>
             option.setName('size')
-                .setDescription('选择尺寸预设（全部小图）')
+                .setDescription('尺寸预设')
                 .setRequired(false)
                 .addChoices(
                     { name: '📱 竖图 832×1216', value: 'portrait_m' },
@@ -111,25 +92,25 @@ const commands = [
                 ))
         .addIntegerOption(option =>
             option.setName('width')
-                .setDescription('自定义宽度（最大1216）')
+                .setDescription('自定义宽度')
                 .setRequired(false)
                 .setMinValue(64)
                 .setMaxValue(1216))
         .addIntegerOption(option =>
             option.setName('height')
-                .setDescription('自定义高度（最大1216）')
+                .setDescription('自定义高度')
                 .setRequired(false)
                 .setMinValue(64)
                 .setMaxValue(1216))
         .addIntegerOption(option =>
             option.setName('steps')
-                .setDescription('采样步数（默认28）')
+                .setDescription('采样步数')
                 .setRequired(false)
                 .setMinValue(1)
                 .setMaxValue(50))
         .addNumberOption(option =>
             option.setName('cfg')
-                .setDescription('CFG/Guidance（V4默认7.0）')
+                .setDescription('CFG/Guidance')
                 .setRequired(false)
                 .setMinValue(0)
                 .setMaxValue(20))
@@ -138,99 +119,143 @@ const commands = [
                 .setDescription('采样器')
                 .setRequired(false)
                 .addChoices(
-                    { name: '🎯 Euler Ancestral', value: 'k_euler_ancestral' },
-                    { name: '⚡ Euler', value: 'k_euler' },
-                    { name: '🔄 DPM++ 2M', value: 'k_dpmpp_2m' },
-                    { name: '🌀 DPM++ 2S Ancestral', value: 'k_dpmpp_2s_ancestral' },
-                    { name: '🎲 DPM++ SDE', value: 'k_dpmpp_sde' },
-                    { name: '📐 DDIM V3', value: 'ddim_v3' }
+                    { name: 'Euler Ancestral', value: 'k_euler_ancestral' },
+                    { name: 'Euler', value: 'k_euler' },
+                    { name: 'DPM++ 2M', value: 'k_dpmpp_2m' },
+                    { name: 'DPM++ 2S Ancestral', value: 'k_dpmpp_2s_ancestral' },
+                    { name: 'DPM++ SDE', value: 'k_dpmpp_sde' },
+                    { name: 'DDIM V3', value: 'ddim_v3' }
                 ))
         .addIntegerOption(option =>
             option.setName('seed')
-                .setDescription('随机种子（-1为随机）')
+                .setDescription('种子')
                 .setRequired(false)
                 .setMinValue(-1))
         .addBooleanOption(option =>
             option.setName('smea')
-                .setDescription('启用SMEA（V3专用）')
+                .setDescription('SMEA')
                 .setRequired(false))
         .addBooleanOption(option =>
             option.setName('dyn')
-                .setDescription('启用SMEA DYN（V3专用）')
+                .setDescription('SMEA DYN')
                 .setRequired(false))
 ];
 
-// 部署命令
 async function deployCommands() {
     try {
         const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
-        console.log('🔄 注册命令中...');
-        await rest.put(
-            Routes.applicationCommands(CLIENT_ID),
-            { body: commands }
-        );
-        console.log('✅ 命令注册成功！');
+        await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+        console.log('Commands deployed');
     } catch (error) {
-        console.error('❌ 注册失败:', error);
+        console.error('Deploy error:', error);
     }
 }
 
-// 生成图片
+function buildV4Prompt(prompt, isNegative = false) {
+    return {
+        caption: {
+            base_caption: prompt,
+            char_captions: []
+        },
+        use_coords: true,
+        use_order: true
+    };
+}
+
+function getModelDefaults(model) {
+    const base = {
+        width: 832,
+        height: 1216,
+        scale: 5,
+        sampler: 'k_euler_ancestral',
+        steps: 28,
+        n_samples: 1,
+        ucPreset: 0,
+        qualityToggle: false,
+        negative_prompt: 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry'
+    };
+    
+    if (model.startsWith('nai-diffusion-4')) {
+        return {
+            ...base,
+            params_version: 3,
+            use_coords: true,
+            sm: false,
+            sm_dyn: false,
+            noise_schedule: 'karras',
+            scale: 7.0
+        };
+    }
+    
+    return {
+        ...base,
+        sm: true,
+        sm_dyn: true
+    };
+}
+
 async function generateImage(params) {
     const {
         prompt,
-        negative_prompt = '',
-        model = 'nai-diffusion-3',
-        width = 512,
-        height = 768,
-        steps = 28,
-        cfg = 5,
-        sampler = 'k_euler_ancestral',
-        seed = -1,
-        smea = false,
-        dyn = false
+        negative_prompt,
+        model,
+        width,
+        height,
+        steps,
+        cfg,
+        sampler,
+        seed,
+        smea,
+        dyn
     } = params;
 
     const actualSeed = seed === -1 ? Math.floor(Math.random() * 2147483647) : seed;
+    const defaults = getModelDefaults(model);
     
-    // 提示词处理
     let finalPrompt = prompt;
-    let finalNegative = negative_prompt;
+    let finalNegative = negative_prompt || defaults.negative_prompt;
     
-    // V1-V3添加质量标签
-    if (!model.includes('4')) {
+    if (!model.startsWith('nai-diffusion-4')) {
         finalPrompt = 'masterpiece, best quality, ' + prompt;
     }
-    
-    if (!finalNegative) {
-        finalNegative = 'lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry';
-    }
 
-    const payload = {
+    const baseParams = {
+        width: width,
+        height: height,
+        scale: cfg || defaults.scale,
+        sampler: sampler || defaults.sampler,
+        steps: steps || defaults.steps,
+        seed: actualSeed,
+        n_samples: 1,
+        ucPreset: 0,
+        qualityToggle: false,
+        dynamic_thresholding: false,
+        controlnet_strength: 1,
+        legacy: false,
+        add_original_image: false,
+        negative_prompt: finalNegative
+    };
+
+    let payload = {
         input: finalPrompt,
         model: model,
         action: 'generate',
-        parameters: {
-            width: width,
-            height: height,
-            scale: cfg,
-            sampler: sampler,
-            steps: steps,
-            seed: actualSeed,
-            n_samples: 1,
-            ucPreset: 0,
-            qualityToggle: false,
-            sm: smea && model.includes('3'),
-            sm_dyn: dyn && model.includes('3'),
-            dynamic_thresholding: false,
-            controlnet_strength: 1,
-            legacy: false,
-            add_original_image: false,
-            negative_prompt: finalNegative
-        }
+        parameters: baseParams
     };
 
-    console.log('📤 生成请求:', model, width + 'x' + height);
+    if (model.startsWith('nai-diffusion-4')) {
+        payload.parameters.params_version = 3;
+        payload.parameters.use_coords = true;
+        payload.parameters.sm = false;
+        payload.parameters.sm_dyn = false;
+        payload.parameters.noise_schedule = 'karras';
+        
+        payload.parameters.v4_prompt = buildV4Prompt(finalPrompt);
+        payload.parameters.v4_negative_prompt = buildV4Prompt(finalNegative, true);
+    } else {
+        payload.parameters.sm = smea !== undefined ? smea : defaults.sm;
+        payload.parameters.sm_dyn = dyn !== undefined ? dyn : defaults.sm_dyn;
+    }
 
     try {
         const response = await axios.post(NAI_API_BASE + '/ai/generate-image', payload, {
@@ -252,60 +277,70 @@ async function generateImage(params) {
             const imageData = await zip.files[imageFile].async('nodebuffer');
             return { buffer: imageData, seed: actualSeed };
         }
-        throw new Error('未找到图片');
+        throw new Error('No image in ZIP');
     } catch (error) {
-        console.error('❌ 生成失败:', error.response?.status);
+        if (error.response?.status === 500 && model.startsWith('nai-diffusion-4')) {
+            console.error('V4 model 500 error, retrying with simplified params');
+            delete payload.parameters.v4_prompt;
+            delete payload.parameters.v4_negative_prompt;
+            
+            const retryResponse = await axios.post(NAI_API_BASE + '/ai/generate-image', payload, {
+                headers: {
+                    'Authorization': 'Bearer ' + NAI_API_KEY,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/zip'
+                },
+                responseType: 'arraybuffer',
+                timeout: 60000
+            });
+            
+            const JSZip = require('jszip');
+            const zip = await JSZip.loadAsync(retryResponse.data);
+            const files = Object.keys(zip.files);
+            const imageFile = files.find(f => f.endsWith('.png'));
+            
+            if (imageFile) {
+                const imageData = await zip.files[imageFile].async('nodebuffer');
+                return { buffer: imageData, seed: actualSeed };
+            }
+        }
         throw error;
     }
 }
 
-// 处理交互
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-    if (interaction.commandName !== 'nai') return;
+    if (!interaction.isChatInputCommand() || interaction.commandName !== 'nai') return;
 
     await interaction.deferReply();
 
     try {
         const prompt = interaction.options.getString('prompt');
-        const model = interaction.options.getString('model') || 'nai-diffusion-4-5-full';
-        const negative = interaction.options.getString('negative') || '';
+        const model = interaction.options.getString('model') || 'nai-diffusion-3';
+        const negative = interaction.options.getString('negative');
         const sizePreset = interaction.options.getString('size');
         const customWidth = interaction.options.getInteger('width');
         const customHeight = interaction.options.getInteger('height');
-        const steps = interaction.options.getInteger('steps') || 28;
-        const cfg = interaction.options.getNumber('cfg') || (model.includes('4') ? 7.0 : 5.0);
-        const sampler = interaction.options.getString('sampler') || 'k_euler_ancestral';
+        const steps = interaction.options.getInteger('steps');
+        const cfg = interaction.options.getNumber('cfg');
+        const sampler = interaction.options.getString('sampler');
         const seed = interaction.options.getInteger('seed') || -1;
-        const smea = interaction.options.getBoolean('smea') || false;
-        const dyn = interaction.options.getBoolean('dyn') || false;
+        const smea = interaction.options.getBoolean('smea');
+        const dyn = interaction.options.getBoolean('dyn');
 
-        // 确定尺寸
-        let width, height;
+        let width = 512, height = 768;
         if (customWidth && customHeight) {
             width = customWidth;
             height = customHeight;
         } else if (sizePreset && SIZE_PRESETS[sizePreset]) {
             width = SIZE_PRESETS[sizePreset].width;
             height = SIZE_PRESETS[sizePreset].height;
-        } else {
-            width = 512;
-            height = 768;
         }
 
-        // 严格检查尺寸限制
-        const totalPixels = width * height;
-        if (totalPixels > SIZE_LIMITS.maxPixels || width > SIZE_LIMITS.maxWidth || height > SIZE_LIMITS.maxHeight) {
-            await interaction.editReply(
-                '❌ **尺寸超出限制！**\n' +
-                '📏 最大支持: 832×1216 或 1216×832\n' +
-                '⚠️ 你的请求: ' + width + '×' + height + '\n' +
-                '💡 请使用预设尺寸或减小自定义尺寸'
-            );
+        if (width * height > SIZE_LIMITS.maxPixels || width > SIZE_LIMITS.maxWidth || height > SIZE_LIMITS.maxHeight) {
+            await interaction.editReply('❌ 尺寸超限！最大832×1216');
             return;
         }
 
-        // 生成图片
         const result = await generateImage({
             prompt, negative_prompt: negative, model,
             width, height, steps, cfg, sampler, seed, smea, dyn
@@ -315,46 +350,33 @@ client.on('interactionCreate', async interaction => {
             name: 'nai_' + result.seed + '.png' 
         });
 
-        const modelName = MODELS[model] || model;
-        const info = '🎨 **生成完成！**\n' +
-                    '📏 尺寸: ' + width + '×' + height + '\n' +
-                    '🤖 模型: ' + modelName + '\n' +
-                    '⚙️ Steps: ' + steps + ' | Guidance: ' + cfg + '\n' +
-                    '🎲 采样器: ' + (SAMPLERS[sampler] || sampler) + '\n' +
+        const info = '✨ 生成完成\n' +
+                    '📏 ' + width + '×' + height + '\n' +
+                    '🤖 ' + (MODELS[model] || model) + '\n' +
                     '🌱 种子: ' + result.seed;
 
         await interaction.editReply({ content: info, files: [attachment] });
 
     } catch (error) {
-        let msg = '❌ **生成失败**\n';
-        if (error.response?.status === 400) {
-            msg += '⚠️ 参数错误';
-        } else if (error.response?.status === 401) {
-            msg += '🔑 API密钥无效';
-        } else if (error.response?.status === 402) {
-            msg += '💰 Anlas余额不足';
-        } else {
-            msg += error.message;
-        }
+        let msg = '❌ 生成失败\n';
+        if (error.response?.status === 400) msg += '参数错误';
+        else if (error.response?.status === 401) msg += 'API密钥无效';
+        else if (error.response?.status === 402) msg += 'Anlas不足';
+        else if (error.response?.status === 500) msg += '服务器错误，请尝试V3模型';
+        else msg += error.message || '未知错误';
         await interaction.editReply(msg);
     }
 });
 
-// 启动
 client.once('clientReady', () => {
-    console.log('✅ 登录成功:', client.user.tag);
+    console.log('Bot ready:', client.user.tag);
     deployCommands();
-    client.user.setPresence({
-        activities: [{ name: '/nai - 小图生成', type: 2 }],
-        status: 'online'
-    });
 });
 
-client.on('error', e => console.error('错误:', e));
-process.on('unhandledRejection', e => console.error('未处理错误:', e));
+client.on('error', e => console.error(e));
+process.on('unhandledRejection', e => console.error(e));
 
-console.log('🚀 启动中...');
 client.login(DISCORD_TOKEN).catch(e => {
-    console.error('❌ 登录失败:', e.message);
+    console.error('Login failed:', e.message);
     process.exit(1);
 });

@@ -8,7 +8,7 @@ const NAI_API_KEY = process.env.NAI_API_KEY;
 const CLIENT_ID = process.env.CLIENT_ID;
 
 // NAI API配置
-const NAI_API_URL = 'https://api.novelai.net/ai/generate-image';
+const NAI_API_URL = 'https://image.novelai.net/ai/generate-image';
 
 // 创建Discord客户端
 const client = new Client({
@@ -350,7 +350,7 @@ client.on('interactionCreate', async interaction => {
 });
 
 // 机器人就绪
-client.once('ready', () => {
+client.once('clientReady', () => {
     console.log(`✅ 机器人已登录: ${client.user.tag}`);
     deployCommands();
     

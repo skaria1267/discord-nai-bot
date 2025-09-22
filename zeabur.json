@@ -1,0 +1,23 @@
+{
+  "name": "discord-nai-bot",
+  "build": {
+    "type": "node",
+    "version": "18"
+  },
+  "env": [
+    {
+      "key": "DISCORD_TOKEN",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "key": "CLIENT_ID",
+      "required": true
+    },
+    {
+      "key": "NAI_API_KEY",
+      "required": true,
+      "sensitive": true
+    }
+  ]
+}

@@ -39,8 +39,15 @@ Discord机器人，使用NovelAI API生成AI图片。
 
 ## 作者
 
-Created by skaria1267 claude 4.1op thinking
-作者什么都不懂，仅提供指令，全是小克写的
+Created by skaria1267 & claude 4.1op thinking
+作者什么都不懂，仅提供指令，代码全是小克写的
+
+## 致谢 / Credits
+
+本项目的V4模型支持参考了 [nai-discordbot](https://github.com/saltysalrua/nai-discordbot) 项目的实现，特别是V4模型的特殊参数结构处理。该项目遵循MIT许可证。
+
+This project's V4 model support references implementation from [nai-discordbot](https://github.com/saltysalrua/nai-discordbot), particularly the V4 model parameter structure handling. That project is licensed under MIT.
+
 ## License
 
-MIT
+本项目遵循MIT许可证 - 详见 [LICENSE](LICENSE) 文件
